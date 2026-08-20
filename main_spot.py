@@ -60,7 +60,7 @@ class SimpleBot:
     def __init__(self):
         print(f"[DEBUG] Bot BTC - __init__ appele")
         if PAPER_MODE:
-            self.exchange = ccxt.gateio({'enableRateLimit': True})
+            self.exchange = ccxt.gate({'enableRateLimit': True})
             self.balance = {'USDT': 10000, 'BTC': 0}
             self.position = None
         else:
@@ -68,7 +68,7 @@ class SimpleBot:
                 print("ERREUR: Les variables d'environnement ne sont pas definies!")
                 sys.exit(1)
             try:
-                self.exchange = ccxt.gateio({
+                self.exchange = ccxt.gate({
                     'apiKey': API_KEY,
                     'secret': API_SECRET,
                     'enableRateLimit': True,

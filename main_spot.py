@@ -16,7 +16,7 @@ MIN_PROFIT_THRESHOLD = 0.5
 TAKE_PROFIT_THRESHOLD = 0.5
 TRAILING_STOP_PCT = 0.3
 RSI_BUY_THRESHOLD = 30
-MACD_CONFIRM = True
+MACD_CONFIRM = False
 COOLDOWN_CYCLES = 5
 MIN_POSITION_THRESHOLD = 0.00001
 
@@ -24,11 +24,9 @@ MIN_POSITION_THRESHOLD = 0.00001
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200); self.send_header('Content-type', 'text/html'); self.end_headers()
-        price = getattr(self.server, 'last_price', 'N/A')
-        rsi = getattr(self.server, 'last_rsi', 'N/A')
-        profit = getattr(self.server, 'last_profit', 'N/A')
-        pos = getattr(self.server, 'position_status', 'Aucun')
-        resp = f"<!DOCTYPE html><html><head><title>CryptoBot BTC</title><meta name='viewport' content='width=device-width'><style>body{{font-family:Arial;padding:20px;background:#1a1a2e;color:#eee}}h1{{color:#f7931a}}.card{{background:#16213e;padding:15px;border-radius:10px;margin:10px 0}}.price{{font-size:2em;color:#f7931a}}.label{{color:#888;font-size:0.8em}}.profit{{color:#00ff88}}.pos{{color:#ffaa00}}</style></head><body><h1>🤖 Bot BTC/USDT — v2</h1><div class='card'><div class='label'>Prix actuel</div><div class='price'>${price}</div></div><div class='card'><div class='label'>Position</div><div class='pos'>{pos}</div></div><div class='card'><div class='label'>RSI</div><div>{rsi}</div></div><div class='card'><div class='label'>Dernier profit</div><div class='profit'>{profit}</div></div></body></html>"
+        price = getattr(self.server, 'last_price', 'N/A'); rsi = getattr(self.server, 'last_rsi', 'N/A')
+        profit = getattr(self.server, 'last_profit', 'N/A'); pos = getattr(self.server, 'position_status', 'Aucun')
+        resp = f"<!DOCTYPE html><html><head><title>CryptoBot BTC</title><meta name='viewport' content='width=device-width'><style>body{{font-family:Arial;padding:20px;background:#1a1a2e;color:#eee}}h1{{color:#f7931a}}.card{{background:#16213e;padding:15px;border-radius:10px;margin:10px 0}}.price{{font-size:2em;color:#f7931a}}.label{{color:#888;font-size:0.8em}}.profit{{color:#00ff88}}.pos{{color:#ffaa00}}</style></head><body><h1>🤖 Bot BTC/USDT — v2</h1><div class='card'><div class='label'>Prix</div><div class='price'>${price}</div></div><div class='card'><div class='label'>Position</div><div class='pos'>{pos}</div></div><div class='card'><div class='label'>RSI</div><div>{rsi}</div></div><div class='card'><div class='label'>Dernier profit</div><div class='profit'>{profit}</div></div></body></html>"
         self.wfile.write(resp.encode())
     def do_HEAD(self):
         self.send_response(200); self.send_header('Content-type', 'text/html'); self.end_headers()
@@ -44,8 +42,7 @@ class SimpleBot:
         else:
             if not API_KEY or not API_SECRET: print("ERREUR: API non définies!"); sys.exit(1)
             self.exchange = ccxt.gate({'apiKey': API_KEY, 'secret': API_SECRET, 'enableRateLimit': True, 'options': {'createMarketBuyOrderRequiresPrice': False}})
-            self.exchange.fetch_time()
-            print("Connexion à Gate.io BTC réussie!")
+            self.exchange.fetch_time(); print("Connexion à Gate.io BTC réussie!")
         self.balance = self.get_real_balance()
         print(f"[DEBUG] Solde: USDT={self.balance.get('USDT', 0):.2f}, BTC={self.balance.get('BTC', 0):.8f}")
         self.position = None; self.cooldown_remaining = 0; self.last_sell_profit_pct = 0.0
@@ -71,7 +68,7 @@ class SimpleBot:
             if buy_orders:
                 last_buy = sorted(buy_orders, key=lambda x: x['timestamp'], reverse=True)[0]
                 price = last_buy.get('average') or last_buy.get('price')
-                if price and float(price) > 0: print(f"[DEBUG] Prix achat (orders): ${float(price):,.2f}"); return float(price)
+                if price and float(price) > 0: print(f"[DEBUG] Prix achat: ${float(price):,.2f}"); return float(price)
             return None
         except Exception as e: print(f"[DEBUG] Erreur: {e}"); return None
 
@@ -85,7 +82,7 @@ class SimpleBot:
             price = last_buy.get('price') or last_buy.get('average')
             cost = last_buy.get('cost', 0)
             if price and float(price) > 0 and float(cost) > 5:
-                print(f"[DEBUG] Prix achat (trades): ${float(price):,.2f} | Cost: ${float(cost):.2f}"); return float(price)
+                print(f"[DEBUG] Prix achat: ${float(price):,.2f} | Cost: ${float(cost):.2f}"); return float(price)
             return None
         except Exception as e: print(f"[DEBUG] Erreur: {e}"); return None
 
@@ -144,8 +141,7 @@ class SimpleBot:
         try:
             values = [float(v) for v in values[-period:]]
             if len(values) < period: return values[-1] if values else 0
-            multiplier = 2 / (period + 1)
-            ema = sum(values[:period]) / period
+            multiplier = 2 / (period + 1); ema = sum(values[:period]) / period
             for v in values[period:]: ema = (v * multiplier) + (ema * (1 - multiplier))
             return ema
         except: return values[-1] if len(values) > 0 else 0
@@ -179,7 +175,7 @@ class SimpleBot:
         rsi, macd, signal, histogram, macd_improving = self.get_indicators(data)
         if rsi >= RSI_BUY_THRESHOLD: return False
         if MACD_CONFIRM and not macd_improving:
-            print(f"  -> RSI OK ({rsi:.1f} < {RSI_BUY_THRESHOLD}) mais MACD se dégrade (histogramme: {histogram:.2f}, en baisse)")
+            print(f"  -> RSI OK ({rsi:.1f} < {RSI_BUY_THRESHOLD}) mais MACD se dégrade (histogramme: {histogram:.2f})")
             return False
         return True
 
@@ -204,8 +200,7 @@ class SimpleBot:
 
     def buy(self):
         try:
-            self.balance = self.get_real_balance()
-            price = self.get_price()
+            self.balance = self.get_real_balance(); price = self.get_price()
             if price is None: return
             total_usdt = float(self.balance.get('USDT', 0))
             usdt_to_use = (total_usdt - MIN_USDT_RESERVE) * (MAX_USDT_PERCENT / 100)
@@ -223,14 +218,12 @@ class SimpleBot:
                 filled_amount = order.get('filled') or order.get('amount') or amount
                 print(f"  ACHAT RÉEL: {float(filled_amount):.8f} BTC @ ${float(fill_price):,.2f}")
                 self.position = {'side': 'long', 'entry': float(fill_price), 'amount': float(filled_amount)}
-                self.peak_price_since_buy = float(fill_price)
-                self.balance = self.get_real_balance()
+                self.peak_price_since_buy = float(fill_price); self.balance = self.get_real_balance()
         except Exception as e: print(f"Erreur achat: {e}")
 
     def sell(self):
         try:
-            self.balance = self.get_real_balance()
-            btc_balance = float(self.balance.get('BTC', 0))
+            self.balance = self.get_real_balance(); btc_balance = float(self.balance.get('BTC', 0))
             if btc_balance < MIN_POSITION_THRESHOLD: self.position = None; return
             price = self.get_price()
             if price is None: return
@@ -243,8 +236,8 @@ class SimpleBot:
                 self.position = None; self.balance = self.get_real_balance()
             else:
                 self.exchange.create_order(SYMBOL, 'market', 'sell', amount)
-                print(f"  VENTE RÉELLE: {amount:.8f} BTC @ ${price:,.2f}")
-                self.position = None; self.balance = self.get_real_balance(); self.peak_price_since_buy = 0.0
+                print(f"  VENTE RÉELLE: {amount:.8f} BTC @ ${price:,.2f}"); self.position = None
+                self.balance = self.get_real_balance(); self.peak_price_since_buy = 0.0
             self.cooldown_remaining = COOLDOWN_CYCLES
             print(f"  ⏳ Cooldown: {COOLDOWN_CYCLES} cycles ({COOLDOWN_CYCLES * 3} min)")
         except Exception as e: print(f"Erreur vente: {e}")
@@ -267,8 +260,7 @@ class SimpleBot:
                         print(f"\n{now} | Prix: ${price:,.2f} | RSI: {rsi:.1f} | MACD: {macd:.2f}/{signal:.2f}")
                         print(f" USDT: {usdt_bal:.2f} | BTC: {btc_bal:.8f} | Last profit: {self.last_sell_profit_pct:+.2f}%")
                         if self.position is None:
-                            if self.cooldown_remaining > 0:
-                                print(f"  ⏳ Cooldown: {self.cooldown_remaining} cycles"); self.cooldown_remaining -= 1
+                            if self.cooldown_remaining > 0: print(f"  ⏳ Cooldown: {self.cooldown_remaining} cycles"); self.cooldown_remaining -= 1
                             else:
                                 if self.should_buy(data): print(f"  -> ✅ SIGNAL ACHAT (RSI={rsi:.1f})"); self.buy()
                         else:
